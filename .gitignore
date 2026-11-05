@@ -1,5 +1,6 @@
-# Локальные бэкапы с устройства: инвентарь (в нём серийники и имя аккаунта),
-# APK удалённых приложений, логи изменений. В публичный репозиторий им нельзя.
+# Cache nguồn tham khảo và dữ liệu riêng của thiết bị.
+.cache/
 backups/
-
+devices.local.json
+__pycache__/
 .DS_Store

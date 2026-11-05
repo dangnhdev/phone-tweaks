@@ -1,23 +1,16 @@
-# inventory-audit
-
-Снимок состояния планшета перед любыми изменениями. **Только чтение.**
+# Phân tích inventory riêng tư
 
 ```bash
-export ADB_SERIAL=192.168.1.169:PORT
-./audit.sh                      # -> backups/inventory-<дата>/ + SUMMARY.txt
-python3 parse_packages.py backups/inventory-<дата>/dumpsys-package.txt out.tsv   # таблица пакетов: система/сторонние, установщик, даты, состояние
-python3 parse_diskstats.py backups/inventory-<дата>/diskstats.txt                # размеры по приложениям (см. про врущий кэш в корневом README)
-python3 parse_usage.py backups/inventory-<дата>/usagestats-plain.txt             # что реально запускалось
+./inventory-audit/audit.sh --device tab-s8
+python3 inventory-audit/parse_packages.py backups/tab-s8/AUDIT_RUN/dumpsys-package.txt backups/tab-s8/AUDIT_RUN/packages.tsv
+python3 inventory-audit/parse_diskstats.py backups/tab-s8/AUDIT_RUN/diskstats.txt
+python3 inventory-audit/parse_usage.py backups/tab-s8/AUDIT_RUN/usagestats-plain.txt
 ```
 
-Что снимается: `getprop`, все списки пакетов, `dumpsys package/appops/deviceidle`,
-settings (global/system/secure), `/proc/meminfo` + `dumpsys meminfo`, `ps`,
-`dumpsys activity processes/services`, `jobscheduler`, `alarm`, `df` + `diskstats` +
-`du` общей памяти, `dumpsys battery/batterystats/power`, sysfs батареи (циклы,
-здоровье), `usagestats`, краткие `wifi/connectivity/netstats`.
+Thay `AUDIT_RUN` bằng thư mục vừa được CLI in ra. Audit luôn yêu cầu profile
+và serial rõ ràng hoặc binding local. Snapshot không đổi trạng thái thiết bị.
 
-`usagestats-plain.txt` скрипт не снимает — это `adb shell dumpsys usagestats`
-без `--checkin`, снимите отдельно, если нужен парсер использования.
-
-В SUMMARY.txt — модель, билд и патч, CSC, пакеты, RAM/своп, диск, батарея,
-анимации, экран, режимы питания и сканирования, IME, accessibility.
+Diskstats có thể dùng cache cũ; không coi kích thước package là đo trực tiếp
+hay bằng chứng nên gỡ ứng dụng. Parser packages chỉ mô tả user 0 từ dumpsys.
+Parser usage phụ thuộc định dạng firmware; output rỗng không có nghĩa không dùng app.
+Giữ TSV và mọi output phân tích trong `backups/`, không đăng dữ liệu công khai.

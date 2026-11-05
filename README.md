@@ -1,84 +1,115 @@
-# megarohas_galaxy_tab_tweaks
+# phone-tweaks
 
-**English** | [Русский](README.ru.md)
+Toolkit audit và lập kế hoạch cho Galaxy S23 Ultra `SM-S918B` qua wireless ADB,
+và Galaxy Tab S8 `SM-X700` qua USB. Dùng Python 3.9+ stdlib và `adb` có sẵn.
 
-Tweaks for the Samsung **Galaxy Tab S6 Lite 2020** tablet (SM-P610 Wi-Fi, One UI 5.1 /
-Android 13, 4 GB RAM) over **wireless ADB**, no root. Tailored to this particular
-tablet, but the lists and commands are standard for any Samsung on One UI 5.
+Fork từ [megarohas/megarohas_galaxy_tab_tweaks](https://github.com/megarohas/megarohas_galaxy_tab_tweaks),
+giữ [MIT LICENSE](LICENSE). Parsers inventory được giữ lại từ upstream.
 
-## Background
+## Kiểm tra đúng thiết bị
 
-The tablet came from a previous owner and now lives on as a desk clock (Flip Clock)
-and a Plex and Yandex Music player. A (read-only) audit showed that with 4 GB of RAM
-the system sat at "status low" with almost 2 GB in ZRAM swap, ~750 MB of which were
-background Samsung residents nobody uses (Daily Board, Samsung Cloud, Smart Suggestions,
-Find My Mobile, the McAfee scanner, Quick Share/Continuity). "Nearby device scanning"
-was scanning BLE 100% of the time, Customization Service woke the tablet 33 times a
-day, and the nightly AOT compilation of apps never ran, because at night the tablet
-isn't idle — it's showing the clock. After a conservative cleanup, memory went to
-"status normal", with no crashes.
+Tạo binding riêng bằng `cp devices.example.json devices.local.json`, rồi thay
+placeholder bằng endpoint hoặc USB serial thực tế. File local được Git ignore.
+Có thể truyền `--serial` để ghi đè binding. Không tự chọn thiết bị dù chỉ có một máy.
 
-## Contents
+```bash
+python3 phone_tweaks.py --help
+python3 phone_tweaks.py status --device tab-s8
+python3 phone_tweaks.py status --device s23-ultra
+python3 phone_tweaks.py audit --device tab-s8
+python3 phone_tweaks.py audit --device s23-ultra
+```
 
-| Folder | What's inside |
-|---|---|
-| [`connect-wireless-adb/`](connect-wireless-adb/) | Pairing and connecting over Wi-Fi. Knows the tablet's two gotchas: mDNS only works in adb's Bonjour mode, and the device shows up via two transports — prints a ready-to-use `export ADB_SERIAL=...` |
-| [`inventory-audit/`](inventory-audit/) | A state snapshot (read-only): getprop, packages, settings, per-process memory, disk, battery, jobs/alarms, app usage + parsers |
-| [`debloat-tab-s6-lite/`](debloat-tab-s6-lite/) | Conservative cleanup: system apps only via `pm disable-user`, third-party ones with an APK backup; a full rollback sits next to it |
-| [`perf-dexopt/`](perf-dexopt/) | Forced AOT compilation of all apps (`speed-profile`), which the system never does on its own on a tablet that's never idle |
-| [`storage-leftovers/`](storage-leftovers/) | Shows leftovers of uninstalled apps in shared storage (WhatsApp/Telegram/file managers/APKs in Download); deleting is manual, with a command from the README |
+Mỗi lệnh xác minh model, transport và hardware identity. Offline/unauthorized
+hoặc model sai sẽ dừng. Wireless endpoint phải ở trạng thái `device` trước khi
+chạy. Toolkit không pair, reconnect hay restart ADB server.
 
-Each folder is self-contained: a README with the what and why + idempotent scripts;
-the debloat and the compilation come with their own rollback. All scripts expect
-`export ADB_SERIAL=<ip:port>` — `connect.sh` prints it. (The per-folder READMEs
-are in Russian.)
+Audit lưu dữ liệu nhạy cảm trong `backups/<profile>/audit-<UTC>-<random>/`, quyền
+thư mục 0700 và file 0600 khi chạy CLI. Mỗi lần có thư mục riêng.
+`audit-status.json` cho biết snapshot đầy đủ hay lỗi từng phần.
+Không đưa thư mục này lên Git hoặc gửi công khai.
 
-To run everything at once, use **`apply-all.sh [ip]`** in the repo root: connect →
-inventory → debloat → compilation.
+## Review plan trước khi debloat
 
-## What the scripts DON'T touch
+```bash
+python3 phone_tweaks.py refresh
+python3 phone_tweaks.py plan --device tab-s8
+python3 phone_tweaks.py debloat --device s23-ultra --package com.facebook.system
+```
 
-The launcher (`com.sec.android.app.launcher`), SystemUI, Settings, GMS/GSF/Play Store,
-WebView, Samsung account (`osp`), `mobileservice`, `spp.push`, `scpm`, the whole
-S Pen stack (`aircommand*`, `handwriting`, `livedrawing`, `pentastic`, `smartcapture`,
-Samsung Notes), Gallery, My Files, both keyboards, Finder, Device care (`lool`),
-update agents (`wssyncmldm`, `soagent`, `updatecenter`), Knox core, Dolby Atmos,
-the Flip Clock app, Weather, Plex, Yandex Music, ReVanced + microG, Chrome, Gmail —
-and **no VPN apps**: they are never removed or restricted in the background.
+`plan` và `debloat` mặc định chỉ đọc thiết bị. Mỗi lần đều fetch HEAD mới nhất
+của [samsungdebloat](https://github.com/itxjobe/samsungdebloat) và
+[UAD NG](https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation).
+Một nguồn lỗi sẽ chặn toàn bộ plan/apply. Cache nằm trong `.cache/references/`.
+Manifest ghi URL, commit và UTC fetch. Plan/journal riêng ghi cả evidence và
+trạng thái installed/enabled live của từng package. Không chạy code upstream.
 
-## Lessons learned on this tablet
+Allowlist chỉ gồm hai dịch vụ OEM Meta `com.facebook.system` và
+`com.facebook.appmanager`. Chỉ cân nhắc nếu không cần tích hợp/cập nhật Meta
+của hãng. Nguồn Samsung nêu chúng trong `community-configs/privacy-focused.txt`;
+UAD ghi `Recommended` tại `resources/assets/uad_lists.json`. Đây là bằng chứng
+để review, không phải bảo đảm phù hợp mọi firmware. Nếu nguồn mới đổi đánh giá
+hoặc bỏ package, CLI dừng. Package không cài sẽ được đánh dấu và bỏ qua.
 
-- **mDNS.** The tablet isn't visible to adb's default openscreen backend; the adb
-  server needs `ADB_MDNS_OPENSCREEN=0` (Bonjour). `connect.sh` takes care of this.
-- **Two transports.** After `adb connect` the device is listed both as `ip:port` and
-  as an mDNS name, and `adb shell` without `-s` refuses to run. Hence the mandatory
-  `ADB_SERIAL`.
-- **zsh and the `path` variable.** In ad-hoc zsh loops, a variable named `path`
-  clobbers `PATH` — and `head`, `sed`, `tr` disappear. Don't name variables that.
-- **Find My Mobile is protected.** `pm disable-user com.samsung.android.fmm` replies
-  "Failed to change state". First turn off "Find My Mobile" in Settings →
-  Biometrics and security, then disable the package.
-- **`dumpsys diskstats` lies.** Per-app sizes come from the
-  `/data/system/diskstats_cache.json` cache, which only refreshes when the device is
-  idle; here it was a year old and still showed long-gone WhatsApp/TikTok. Trust `df`,
-  `du` and the inventory instead.
-- **A load average of ~19 is not a problem.** The Exynos kernel keeps D-state threads
-  (`tz_worker_thread`, `simpleinteractive`) that always count toward load. Look at
-  `dumpsys cpuinfo` / `top`, not `uptime`.
-- **Dolby Atmos** runs in software and keeps ~0.4 of a core busy in audioserver during
-  playback, but without it the tablet's speakers sound noticeably worse. Kept on
-  purpose; it has no key in `settings`, GUI only.
-- **Nightly dexopt doesn't run** if the tablet never sleeps on the charger
-  (clock on screen): only 29 out of 362 packages had been compiled. Fixed by
-  [`perf-dexopt/`](perf-dexopt/).
+Sau khi xem journal và nhận authorization RIÊNG cho từng package trên đúng máy,
+operator mới thêm `--journal backups/<profile>/PLAN_RUN/journal.json`,
+`--apply` và `--authorization 'quyết định cụ thể của user'`
+vào lệnh `debloat --device ... --package ...`. Lặp `--package` nếu chọn nhiều.
+Apply phải dùng đúng plan đã review, cùng hardware, package, trạng thái gốc và commit nguồn.
+Nếu một giá trị đổi, tạo và review plan mới. Không có lựa chọn mặc định apply-all. CLI chỉ dùng `pm disable-user --user 0`;
+không uninstall, xóa dữ liệu hoặc đổi appops. `--authorization` là bản ghi quyết định,
+không phải cơ chế xác thực người dùng. Agent phải tuân thủ [AGENTS.md](AGENTS.md).
 
-## Backups
+## Khôi phục đúng journal
 
-Everything the scripts pull from the device (the inventory — which includes serial
-numbers and the account name, APKs of removed apps, change logs) goes into `backups/`
-in the repo root — the folder is in `.gitignore` and never ends up on GitHub.
+Chỉ định đường dẫn journal do lần debloat đó in ra. Không dùng backup toàn cục.
 
----
-*The package lists were checked against firmware `P610XXS7FYD1` (One UI 5.1, the last
-update for this model). On another device, take an inventory first and review the
-lists in `debloat.sh` before running it.*
+```bash
+python3 phone_tweaks.py rollback --device tab-s8 --journal backups/tab-s8/DEBLOAT_RUN/journal.json
+```
+
+Lệnh trên chỉ hiển thị rollback. Sau authorization riêng mới thêm `--apply` và
+`--authorization`. Rollback dùng trạng thái gốc trong journal và không cần mạng.
+Chỉ plan/apply debloat phải fetch hai nguồn mới nhất.
+Hardware serial, model và profile phải khớp journal, kể cả khi transport IP đổi.
+
+Journal ghi trạng thái gốc trước từng dispatch. CLI read-back sau mỗi lệnh,
+dừng ở lỗi đầu tiên và giữ entries `pending`/`uncertain` để xử lý mất kết nối.
+Rollback chỉ xử lý entries đã dispatch và khôi phục trạng thái gốc.
+Debloat giữ nguyên package vốn đã disabled, disabled-user hoặc disabled-until-used. Trạng thái bị thay đổi ngoài toolkit sẽ
+chặn rollback trước lần ghi đầu nếu không còn khớp trạng thái dự kiến.
+Dùng `--package <package>` khi chỉ muốn khôi phục entry còn hợp lệ; có thể lặp flag.
+Các entry khác giữ nguyên trong journal. Journal đã restored không
+được dùng đè lên thay đổi mới. Không chạy hai phiên apply/rollback đồng thời.
+
+## Giữ chức năng và kiểm tra sau thay đổi
+
+Telephony, S Pen, Knox/Secure Folder, DeX, camera, notifications, VPN, automation,
+Quick Share, tài khoản và OTA được giữ ngoài allowlist. Sau thay đổi được cho phép,
+operator cần kiểm tra các chức năng thực tế. Không có phép đo speedup trong fork này.
+Workflow Tab S6 Lite, apply-all, cleanup storage và ép dexopt cũ đã được bỏ.
+Android quản lý JIT/AOT và tối ưu theo profile; toolkit không ép compilation hàng loạt.
+
+## Mở UAD NG độc lập
+
+```bash
+open -a 'UAD NG'
+```
+
+Bản ARM64 UAD NG 1.3.1 được cài ở `/Applications/UAD NG.app`
+và SHA-256 đã được đối chiếu với release chính thức. Đây là công cụ độc lập;
+không chạy disable/uninstall từ GUI nếu chưa có authorization riêng.
+Homebrew cask UAD cũ 0.5.1 đã disabled, không phải UAD NG.
+
+## Chạy regression tests
+
+```bash
+python3 -m unittest discover -s tests -v
+python3 -m compileall -q phone_tweaks.py inventory-audit tests
+bash -n inventory-audit/audit.sh
+git diff --check
+```
+
+Tests dùng mocked ADB, gồm hai thiết bị, mismatch, offline/unauthorized, dry-run,
+refresh lỗi, partial failure, lỗi stdout, write-ahead journal và rollback trạng thái gốc.
+Xem [inventory-audit](inventory-audit/README.md) để phân tích snapshot.

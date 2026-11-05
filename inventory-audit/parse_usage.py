@@ -14,7 +14,7 @@ for line in txt.splitlines():
         d, hh, mm, ss = [int(x or 0) for x in h.groups()]
         tot[pkg] += d*86400 + hh*3600 + mm*60 + ss
         launches[pkg] += int(lc or 0)
-print(f"{'пакет':52} {'год, ч':>7} {'запусков':>8}  последний раз")
+print(f"{'package':52} {'năm, giờ':>7} {'lần mở':>8}  lần cuối")
 for pkg, s in tot.most_common(70):
     print(f"{pkg:52} {s/3600:7.1f} {launches[pkg]:8}  {last[pkg][:16]}")
-print("\nПакетов с любой активностью:", len([p for p in last if last[p] and not last[p].startswith('1970')]))
+print("\nPackages có hoạt động:", len([p for p in last if last[p] and not last[p].startswith('1970')]))
