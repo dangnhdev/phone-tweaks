@@ -44,7 +44,7 @@ Một nguồn lỗi sẽ chặn toàn bộ plan/apply. Cache nằm trong `.cache
 Manifest ghi URL, commit và UTC fetch. Plan/journal riêng ghi cả evidence và
 trạng thái installed/enabled live của từng package. Không chạy code upstream.
 
-Allowlist gồm năm package. Hai dịch vụ Meta `com.facebook.system` và
+Allowlist gồm bảy package. Hai dịch vụ Meta `com.facebook.system` và
 `com.facebook.appmanager` dùng nguồn Samsung `community-configs/privacy-focused.txt`.
 Chỉ chọn chúng nếu không dùng tích hợp và cập nhật Meta của hãng.
 
@@ -53,6 +53,10 @@ Ba candidate đợt 1 dùng nguồn Samsung `03-safe-system-apps.txt`:
 - `com.samsung.android.rubin.app` tắt Customization Service, mất cá nhân hóa theo hành vi.
 - `com.samsung.android.mapsagent` tắt dịch vụ đề xuất ứng dụng Samsung và đối tác.
 - `com.sec.android.app.chromecustomizations` bỏ tùy biến Chrome của Samsung.
+
+Hai candidate tùy chọn `com.samsung.android.aremoji` và
+`com.samsung.android.aremojieditor` dùng nguồn Samsung `01-safe-user-apps.txt`.
+Tắt chúng sẽ mất AR Emoji và trình chỉnh sửa emoji. Chỉ apply khi user chọn rõ ràng.
 
 Mỗi candidate phải đồng thời được UAD đánh dấu `Recommended` tại
 `resources/assets/uad_lists.json`. CLI đối chiếu đúng tên package hoặc dòng lệnh

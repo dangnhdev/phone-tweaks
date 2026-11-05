@@ -27,6 +27,10 @@ CANDIDATES = {
                                      '03-safe-system-apps.txt'),
     'com.sec.android.app.chromecustomizations': ('Bỏ tùy biến Chrome của Samsung.',
                                                '03-safe-system-apps.txt'),
+    'com.samsung.android.aremoji': ('Tắt tính năng AR Emoji của Samsung.',
+                                   '01-safe-user-apps.txt'),
+    'com.samsung.android.aremojieditor': ('Tắt trình chỉnh sửa AR Emoji.',
+                                         '01-safe-user-apps.txt'),
 }
 STATES = {0: 'default-state', 1: 'enable', 2: 'disable', 3: 'disable-user', 4: 'disable-until-used'}
 LABELS = {0: 'default', 1: 'enabled', 2: 'disabled', 3: 'disabled-user', 4: 'disabled-until-used'}

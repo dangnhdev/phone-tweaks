@@ -112,6 +112,30 @@ class SafetyTests(unittest.TestCase):
             with patch.object(t, 'source_text', side_effect=[package, json.dumps({package: {'removal': 'Advanced'}})]), self.assertRaises(t.SafetyError):
                 REAL_EVIDENCE(refs, package)
 
+    def test_ar_emoji_selection_preserves_original_states_for_rollback(self):
+        selected = ['com.samsung.android.aremoji', 'com.samsung.android.aremojieditor']
+        self.adb.states.update(dict(zip(selected, (0, 1))))
+        before = dict(self.adb.states)
+        path = self.apply(selected)
+        self.assertEqual([self.adb.states[p] for p in selected], [3, 3])
+        self.assertEqual({e['package'] for e in json.loads(path.read_text())['entries']}, set(selected))
+        t.rollback(self.device, path, True, 'restore selected AR Emoji')
+        self.assertEqual(self.adb.states, before)
+
+    def test_ar_emoji_requires_both_source_entries(self):
+        refs = {name: {'commit': 'fixture'} for name in t.SOURCES}
+        for package in ('com.samsung.android.aremoji', 'com.samsung.android.aremojieditor'):
+            for rating in ('Recommended', 'Advanced'):
+                with patch.object(t, 'source_text', side_effect=[
+                        'adb shell pm uninstall --user 0 ' + package,
+                        json.dumps({package: {'removal': rating}})]):
+                    if rating == 'Recommended':
+                        self.assertEqual(REAL_EVIDENCE(refs, package)['samsungdebloat']['path'],
+                                         '01-safe-user-apps.txt')
+                    else:
+                        with self.assertRaises(t.SafetyError):
+                            REAL_EVIDENCE(refs, package)
+
     def test_cli_debloat_defaults_to_dry_run(self):
         with patch.object(t, 'refresh', return_value={}):
             t.main(['debloat', '--device', 'tab-s8', '--serial', 'usb1', '--package', A])
