@@ -44,12 +44,34 @@ Một nguồn lỗi sẽ chặn toàn bộ plan/apply. Cache nằm trong `.cache
 Manifest ghi URL, commit và UTC fetch. Plan/journal riêng ghi cả evidence và
 trạng thái installed/enabled live của từng package. Không chạy code upstream.
 
-Allowlist chỉ gồm hai dịch vụ OEM Meta `com.facebook.system` và
-`com.facebook.appmanager`. Chỉ cân nhắc nếu không cần tích hợp/cập nhật Meta
-của hãng. Nguồn Samsung nêu chúng trong `community-configs/privacy-focused.txt`;
-UAD ghi `Recommended` tại `resources/assets/uad_lists.json`. Đây là bằng chứng
-để review, không phải bảo đảm phù hợp mọi firmware. Nếu nguồn mới đổi đánh giá
-hoặc bỏ package, CLI dừng. Package không cài sẽ được đánh dấu và bỏ qua.
+Allowlist gồm năm package. Hai dịch vụ Meta `com.facebook.system` và
+`com.facebook.appmanager` dùng nguồn Samsung `community-configs/privacy-focused.txt`.
+Chỉ chọn chúng nếu không dùng tích hợp và cập nhật Meta của hãng.
+
+Ba candidate đợt 1 dùng nguồn Samsung `03-safe-system-apps.txt`:
+
+- `com.samsung.android.rubin.app` tắt Customization Service, mất cá nhân hóa theo hành vi.
+- `com.samsung.android.mapsagent` tắt dịch vụ đề xuất ứng dụng Samsung và đối tác.
+- `com.sec.android.app.chromecustomizations` bỏ tùy biến Chrome của Samsung.
+
+Mỗi candidate phải đồng thời được UAD đánh dấu `Recommended` tại
+`resources/assets/uad_lists.json`. CLI đối chiếu đúng tên package hoặc dòng lệnh
+ADB trong nguồn Samsung dưới dạng dữ liệu; không thực thi lệnh nguồn.
+Nếu nguồn mới đổi đánh giá hoặc bỏ package, CLI dừng.
+Package không cài sẽ được đánh dấu và bỏ qua.
+
+Tạo plan riêng cho đợt 1 trên Tab S8:
+
+```bash
+python3 phone_tweaks.py plan --device tab-s8 \
+  --package com.samsung.android.rubin.app \
+  --package com.samsung.android.mapsagent \
+  --package com.sec.android.app.chromecustomizations
+```
+
+Parser trạng thái chỉ đọc block package đang hoạt động của đúng package và user 0.
+Bản system gốc trong `Hidden system packages` và header chẩn đoán không được dùng
+làm trạng thái hiện tại. Output thiếu hoặc có nhiều trạng thái hiện tại sẽ bị từ chối.
 
 Sau khi xem journal và nhận authorization RIÊNG cho từng package trên đúng máy,
 operator mới thêm `--journal backups/<profile>/PLAN_RUN/journal.json`,

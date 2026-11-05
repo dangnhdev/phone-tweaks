@@ -17,8 +17,16 @@ SOURCES = {
     'uad-ng': 'https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation',
 }
 CANDIDATES = {
-    'com.facebook.system': 'Meta App Installer; chỉ chọn nếu không dùng tích hợp/cài đặt Meta của hãng.',
-    'com.facebook.appmanager': 'Meta App Manager; mất cập nhật Meta qua dịch vụ OEM. Giữ nếu còn cần.',
+    'com.facebook.system': ('Meta App Installer; chỉ chọn nếu không dùng tích hợp/cài đặt Meta của hãng.',
+                            'community-configs/privacy-focused.txt'),
+    'com.facebook.appmanager': ('Meta App Manager; mất cập nhật Meta qua dịch vụ OEM. Giữ nếu còn cần.',
+                                'community-configs/privacy-focused.txt'),
+    'com.samsung.android.rubin.app': ('Customization Service; mất cá nhân hóa và đề xuất theo hành vi.',
+                                     '03-safe-system-apps.txt'),
+    'com.samsung.android.mapsagent': ('Bỏ dịch vụ đề xuất ứng dụng Samsung và đối tác.',
+                                     '03-safe-system-apps.txt'),
+    'com.sec.android.app.chromecustomizations': ('Bỏ tùy biến Chrome của Samsung.',
+                                               '03-safe-system-apps.txt'),
 }
 STATES = {0: 'default-state', 1: 'enable', 2: 'disable', 3: 'disable-user', 4: 'disable-until-used'}
 LABELS = {0: 'default', 1: 'enabled', 2: 'disabled', 3: 'disabled-user', 4: 'disabled-until-used'}
@@ -83,11 +91,13 @@ def source_text(refs, name, path):
 
 
 def evidence(refs, package):
-    path = 'community-configs/privacy-focused.txt'
+    path = CANDIDATES[package][1]
     samsung = source_text(refs, 'samsungdebloat', path)
     uad_path = 'resources/assets/uad_lists.json'
     uad = json.loads(source_text(refs, 'uad-ng', uad_path))
-    if package not in samsung.splitlines() or uad.get(package, {}).get('removal') != 'Recommended':
+    supported = any(line.strip() in (package, 'adb shell pm uninstall --user 0 ' + package)
+                    for line in samsung.splitlines())
+    if not supported or uad.get(package, {}).get('removal') != 'Recommended':
         raise SafetyError('Nguồn mới không còn hỗ trợ candidate ' + package)
     return {name: dict(refs[name], path=p) for name, p in
             [('samsungdebloat', path), ('uad-ng', uad_path)]}
@@ -132,7 +142,14 @@ class Device:
 
     def state(self, package):
         out = self.shell('dumpsys', 'package', package)
-        users = re.findall(r'^\s*User 0:([^\n]*)', out, re.M)
+        active = out.split('Hidden system packages:', 1)[0]
+        blocks = re.findall(r'^[ \t]*Package \[([^\]]+)\][^\n]*\n(.*?)(?=^[ \t]*Package \[|\Z)',
+                            active, re.M | re.S)
+        matches = [body for name, body in blocks if name == package]
+        if len(matches) != 1:
+            raise SafetyError('Không xác định active package ' + package)
+        users = re.findall(r'^[ \t]*User 0:([^\n]*\binstalled=(?:true|false)\b[^\n]*)',
+                           matches[0], re.M)
         if len(users) != 1 or not re.search(r'\binstalled=true\b', users[0]):
             raise SafetyError('Không xác định package/user 0 ' + package)
         found = re.search(r'\benabled=([0-4])\b', users[0])
@@ -158,7 +175,7 @@ def make_plan(device, refs, selected):
     for package in selected or CANDIDATES:
         if package not in CANDIDATES:
             raise SafetyError('Package ngoài allowlist ' + package)
-        rows.append({'package': package, 'reason': CANDIDATES[package],
+        rows.append({'package': package, 'reason': CANDIDATES[package][0],
                      'present': package in installed,
                      'original': device.state(package) if package in installed else None,
                      'evidence': evidence(refs, package)})

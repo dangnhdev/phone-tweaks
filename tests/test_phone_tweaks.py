@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import phone_tweaks as t
 
-A, B = t.CANDIDATES
+A, B = 'com.facebook.system', 'com.facebook.appmanager'
 REAL_EVIDENCE = t.evidence
 
 
@@ -36,7 +36,7 @@ class Adb:
         elif command[:3] == ['pm', 'list', 'packages']:
             value = '\n'.join('package:' + p for p in self.states)
         elif command[:2] == ['dumpsys', 'package']:
-            value = '  User 0: installed=true hidden=false enabled=%d' % self.states[command[2]]
+            value = '  Package [%s] (fixture):\n    User 0: installed=true hidden=false enabled=%d' % (command[2], self.states[command[2]])
         elif command[0] == 'pm':
             state = {v: k for k, v in t.STATES.items()}[command[1]]
             package = command[-1]
@@ -73,6 +73,44 @@ class SafetyTests(unittest.TestCase):
     def apply(self, selected, authorization='approved'):
         plan = t.debloat(self.device, {}, selected, False, '')
         return t.debloat(self.device, {}, selected, True, authorization, plan)
+
+    def test_active_state_ignores_hidden_original_and_diagnostic_users(self):
+        for state in t.STATES:
+            output = ('Packages:\n  Package [%s] (active):\n'
+                      '    User 0: installed=true enabled=%d\n'
+                      'Hidden system packages:\n  Package [%s] (original):\n'
+                      '    User 0: installed=true enabled=1\n'
+                      'Queries:\n    User 0:\n    User 0: \n') % (A, state, A)
+            with patch.object(self.device, 'shell', return_value=output):
+                self.assertEqual(self.device.state(A), state)
+
+    def test_missing_wrong_or_ambiguous_active_state_is_rejected(self):
+        active = '  Package [%s] (active):\n    User 0: installed=true enabled=0\n' % A
+        outputs = ['Hidden system packages:\n' + active,
+                   active.replace(A, B), active + active,
+                   active.replace('installed=true', 'installed=false'),
+                   active.replace('enabled=0', 'enabled=9'),
+                   active + '    User 0: installed=true enabled=1\n']
+        for output in outputs:
+            with patch.object(self.device, 'shell', return_value=output), self.assertRaises(t.SafetyError):
+                self.device.state(A)
+
+    def test_stage_one_candidate_evidence_uses_exact_source_entries(self):
+        packages = ['com.samsung.android.rubin.app', 'com.samsung.android.mapsagent',
+                    'com.sec.android.app.chromecustomizations']
+        refs = {name: {'commit': 'fixture'} for name in t.SOURCES}
+        for package in packages:
+            uad = json.dumps({package: {'removal': 'Recommended'}})
+            for text in (package, 'adb shell pm uninstall --user 0 ' + package):
+                with patch.object(t, 'source_text', side_effect=[text, uad]):
+                    self.assertEqual(REAL_EVIDENCE(refs, package)['samsungdebloat']['path'],
+                                     '03-safe-system-apps.txt')
+            for text in ('# ' + package, package + '.other',
+                         'adb shell pm uninstall --user 0 ' + package + ' ; echo unsafe'):
+                with patch.object(t, 'source_text', side_effect=[text, uad]), self.assertRaises(t.SafetyError):
+                    REAL_EVIDENCE(refs, package)
+            with patch.object(t, 'source_text', side_effect=[package, json.dumps({package: {'removal': 'Advanced'}})]), self.assertRaises(t.SafetyError):
+                REAL_EVIDENCE(refs, package)
 
     def test_cli_debloat_defaults_to_dry_run(self):
         with patch.object(t, 'refresh', return_value={}):
